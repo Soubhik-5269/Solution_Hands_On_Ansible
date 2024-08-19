@@ -6,6 +6,11 @@
     backup_dir: "/var/www/myapp"  # Specify the directory to back up
     local_backup_dir: "/root/Ansible_Tutorial/Backup"  # Specify the local path for storing the backup
   tasks:
+    - name: Install or upgrade nginx using yum
+      yum:
+        name: nginx
+        state: latest
+
     - name: Run preboot tasks as Create local backup directoryif it does not exist
       local_action:
         module: file
