@@ -1,0 +1,28 @@
+---
+- name: Rollback Application with Ansistrano
+  hosts: all
+  become: yes
+
+  vars:
+    ansistrano_deploy_to: /var/www/mytarget          # Path to the deployment directory
+    
+
+  tasks:
+    - name: Debug current symlink
+      command: ls -l /var/www/mytarget/current
+      register: current_symlink
+
+    - name: Show current symlink
+      debug:
+        msg: "Current symlink points to {{ current_symlink.stdout }}"
+
+    - name: Rollback to the previous version using Ansistrano
+      include_role:
+        name: ansistrano.rollback
+      vars:
+        ansistrano_deploy_to: /var/www/mytarget
+
+    - name: Restart web server
+      service:
+        name: nginx  # Use 'nginx' if you're using Nginx
+        state: restarted

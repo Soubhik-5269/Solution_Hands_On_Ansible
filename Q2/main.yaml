@@ -1,0 +1,101 @@
+---
+- name: Configure user account and server
+  hosts: all
+  become: yes
+  vars:
+    new_user: My_Dummy_User
+    new_user_password: Newuser@123
+    ssh_port: 22
+
+  tasks:
+    - name: Create a new user account
+      user:
+        name: "{{ new_user }}"
+        password: "{{ new_user_password | password_hash('sha512') }}"
+        shell: /bin/bash
+        state: present
+
+    - name: Configure SSH public key authentication for the user
+      authorized_key:
+        user: "{{ new_user }}"
+        state: present
+        key: "{{ lookup('file', '/root/.ssh/id_rsa.pub') }}"
+
+    - name: Add user to sudoers
+      lineinfile:
+        path: /etc/sudoers
+        line: "{{ new_user }} ALL=(ALL) NOPASSWD:ALL"
+        validate: 'visudo -cf %s'
+
+    - name: Run system updates and upgrades
+      yum:
+        name: '*'
+        state: latest
+        update_cache: yes
+      retries: 1
+      delay: 30
+      until: result is succeeded
+      register: result
+      ignore_errors: yes
+
+    - name: Install and configure firewalld
+      yum:
+        name: firewalld
+        state: present
+      retries: 5
+      delay: 30
+      until: result is succeeded
+      register: result
+
+    - name: Start and enable firewalld
+      service:
+        name: firewalld
+        state: started
+        enabled: yes
+
+    - name: Allow SSH traffic in the drop zone
+      command: firewall-cmd --zone=drop --add-rich-rule='rule family="ipv4" service name="ssh" accept' --permanent
+
+    - name: Set firewalld default zone to drop
+      command: firewall-cmd --set-default-zone=drop
+
+    - name: Reload firewalld to apply changes
+      command: firewall-cmd --reload
+
+    - name: Install and configure Postfix for daily summary emails
+      yum:
+        name: postfix
+        state: present
+      retries: 5
+      delay: 30
+      until: result is succeeded
+      register: result
+
+    - name: Ensure Postfix is started and enabled
+      service:
+        name: postfix
+        state: started
+        enabled: yes
+
+    - name: Configure Postfix with Debconf-like options
+      lineinfile:
+        path: /etc/postfix/main.cf
+        regexp: '^#?myhostname ='
+        line: 'myhostname = your_domain.com'
+
+    - name: Configure SSH port
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?Port '
+        line: "Port {{ ssh_port }}"
+
+    - name: Disable SSH root login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin '
+        line: 'PermitRootLogin no'
+
+    - name: Restart SSH service to apply changes
+      service:
+        name: sshd
+        state: restarted

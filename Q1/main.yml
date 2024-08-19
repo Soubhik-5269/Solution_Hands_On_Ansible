@@ -1,0 +1,32 @@
+---
+- name: Perform Preboot Tasks and Reboot Server
+  hosts: all
+  become: yes  # This ensures the tasks run as the root or sudo user
+  tasks:
+
+    - name: Run preboot tasks and upgrade all packages using yum
+      yum:
+        name: "nginx"
+        state: latest
+
+    - name: Reboot the server
+      command: /sbin/reboot
+      async: 1  # Run asynchronously
+      poll: 0   # Don't wait for task completion
+      ignore_errors: true  # Ignore errors since the connection will drop
+
+    - name: Wait for the server to reboot and port 22 to become available
+      wait_for:
+        port: 22
+        state: started
+        delay: 10
+        timeout: 300  # 300 seconds = 5 minutes
+
+    - name: Wait for the server to come back online (ping check)
+      wait_for_connection:
+        delay: 10
+        timeout: 300
+
+    - name: Resume playbook tasks after reboot
+      debug:
+        msg: "The server has been rebooted and is now available. Resuming the playbook."
