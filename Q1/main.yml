@@ -2,12 +2,23 @@
 - name: Perform Preboot Tasks and Reboot Server
   hosts: all
   become: yes  # This ensures the tasks run as the root or sudo user
+  vars:
+    backup_dir: "/var/www/myapp"  # Specify the directory to back up
+    local_backup_dir: "/root/Ansible_Tutorial/Backup"  # Specify the local path for storing the backup
   tasks:
+    - name: Run preboot tasks as Create local backup directoryif it does not exist
+      local_action:
+        module: file
+        path: "{{ local_backup_dir }}"
+        state: directory
+        mode: '0755'
 
-    - name: Run preboot tasks and upgrade all packages using yum
-      yum:
-        name: "nginx"
-        state: latest
+    - name: Run preboot tasks as take a backup of a remote  specified directory
+      fetch:
+        src: "{{ backup_dir }}"
+        dest: "{{ local_backup_dir }}"
+        flat: yes
+        fail_on_missing: yes
 
     - name: Reboot the server
       command: /sbin/reboot
